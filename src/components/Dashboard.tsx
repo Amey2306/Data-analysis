@@ -40,6 +40,7 @@ import {
 import { DrilldownTable } from './DrilldownTable';
 import { WalkinLostTable } from './WalkinLostTable';
 import { RawDataTable } from './RawDataTable';
+import { LostReasonTable } from './LostReasonTable';
 
 const COLORS = ['#4f46e5', '#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ec4899'];
 
@@ -53,7 +54,7 @@ export function Dashboard() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [activeTableView, setActiveTableView] = useState<'drilldown' | 'walkin' | 'raw'>('drilldown');
+  const [activeTableView, setActiveTableView] = useState<'drilldown' | 'walkin' | 'lostreason' | 'raw'>('drilldown');
   const [openFilters, setOpenFilters] = useState<Record<string, boolean>>({ project: true, vendor: true, platform: true, adset: true });
   const [rawUploadData, setRawUploadData] = useState<any[]>(() => 
     adSetPerformance.map(row => ({ ...row, _derived: { ...row } }))
@@ -133,14 +134,31 @@ export function Dashboard() {
   });
   const sources = Object.entries(sourceDataMap).map(([name, value]) => ({ name, value }));
 
-  // Simulate lost reasons roughly based on total leads vs closed
-  const lostReasons = [
-    { reason: 'Not Contactable', count: Math.floor(totalLeads * 0.25) },
-    { reason: 'Not Interested', count: Math.floor(totalLeads * 0.20) },
-    { reason: 'Budget', count: Math.floor(totalLeads * 0.15) },
-    { reason: 'Location', count: Math.floor(totalLeads * 0.08) },
-    { reason: 'No Plans', count: Math.floor(totalLeads * 0.05) },
-  ].filter(r => r.count > 0);
+  // Calculate lost reasons from raw data if available, otherwise simulate based on total leads vs closed
+  const actualLostReasonsMap: Record<string, number> = {};
+  filteredRawRows.forEach(row => {
+    if (row._derived && row._derived.lostReason && row._derived.lostReason.trim() !== '') {
+      const reason = row._derived.lostReason.trim();
+      actualLostReasonsMap[reason] = (actualLostReasonsMap[reason] || 0) + 1;
+    }
+  });
+
+  let lostReasons = Object.entries(actualLostReasonsMap)
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10); // Show top 10 lost reasons in the chart
+
+  if (lostReasons.length === 0 && totalLeads > 0) {
+    // Fallback block to simulated data if no raw reason data exists
+    lostReasons = [
+      { reason: 'Not Contactable', count: Math.floor(totalLeads * 0.25) },
+      { reason: 'Not Interested', count: Math.floor(totalLeads * 0.20) },
+      { reason: 'Budget', count: Math.floor(totalLeads * 0.15) },
+      { reason: 'Location', count: Math.floor(totalLeads * 0.08) },
+      { reason: 'No Plans', count: Math.floor(totalLeads * 0.05) },
+    ].filter(r => r.count > 0);
+  }
+
 
   const projectDataMap: Record<string, { leads: number, siteVisits: number, closed: number }> = {};
   filteredAdSets.forEach(c => {
@@ -197,7 +215,7 @@ export function Dashboard() {
             };
 
             const processedRawRows = validRows.map((row) => {
-              let project = '', vendor = '', platform = '', campaign = '', adSet = '', adCode = '', walkinSource = '', date = '';
+              let project = '', vendor = '', platform = '', campaign = '', adSet = '', adCode = '', walkinSource = '', date = '', lostReason = '';
               if (isRawLeadData) {
                 project = getValRawWrapper(row, ['Marketing Project Name', 'Project: Project Name', 'Project Name', 'Project']) || 'Unknown Project';
                 vendor = getValRawWrapper(row, ['Actual Vendor Name', 'Actual Vendor', 'Agency', 'Vendor']) || 'Internal';
@@ -206,6 +224,7 @@ export function Dashboard() {
                 adSet = getValRawWrapper(row, ['Plan-Mix', 'Plan mix', 'PlanMix', 'Ad Set', 'Ad Set Name']) || 'General';
                 adCode = getValRawWrapper(row, ['Advertisement Code', 'Advertisement code', 'advetisement code', 'Ad Code', 'Ad ID', 'AdID']) || '';
                 walkinSource = getValRawWrapper(row, ['Walk-in Source', 'Walk - In Source', 'Walkin Source', 'Walk in Source', 'Site Visit Source', 'SV Source', 'Source of Walk-in', 'Walkin Source Name', 'Walkin Source: Walkin Source', 'Site Visit Vendor', 'Site Visit Source Name', 'Walk In Vendor', 'Channel', 'Channel Type', 'Walk-in Channel', 'Site Visit Channel', 'Final Source', 'Closing Source', 'Conversion Source', 'Sub Source', 'Source Type', 'Visit Source', 'Walkin Details']) || platform;
+                lostReason = getValRawWrapper(row, ['Lost Reason', 'Reason for Lost', 'Status Reason', 'Cancellation Reason', 'Reason', 'Drop Reason']) || '';
                 
                 const dateVal = row['Date of Enquiry'] || row['Last Modified Date'] || '';
                 if (dateVal) {
@@ -238,8 +257,9 @@ export function Dashboard() {
                     date = dateVal; 
                   }
                 }
+                lostReason = getVal(['Lost Reason', 'Reason for Lost', 'Status Reason', 'Cancellation Reason', 'Reason', 'Drop Reason']) || '';
               }
-              return { ...row, _derived: { project, vendor, platform, campaign, adSet, adCode, walkinSource, date } };
+              return { ...row, _derived: { project, vendor, platform, campaign, adSet, adCode, walkinSource, date, lostReason } };
             });
             setRawUploadData(processedRawRows);
 
@@ -842,7 +862,17 @@ export function Dashboard() {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
               }`}
             >
-              Walk-in Lost Analysis
+              Walk-in Source Analysis
+            </button>
+            <button
+              onClick={() => setActiveTableView('lostreason')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                activeTableView === 'lostreason' 
+                  ? 'bg-white text-indigo-700 shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              Lost Reason Analysis
             </button>
             <button
               onClick={() => setActiveTableView('raw')}
@@ -872,6 +902,7 @@ export function Dashboard() {
           )}
           
           {activeTableView === 'walkin' && <WalkinLostTable data={filteredAdSets} />}
+          {activeTableView === 'lostreason' && <LostReasonTable data={filteredRawRows} />}
           {activeTableView === 'raw' && <RawDataTable data={filteredRawRows} headers={rawHeaders} />}
         </div>
 
