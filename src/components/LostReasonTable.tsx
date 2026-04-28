@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, BarChart2 } from 'lucide-react';
-import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, LineChart, Line } from 'recharts';
 
 const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
 
@@ -136,6 +136,7 @@ const LostReasonRow = ({ node, lostReasons, expandedPaths, togglePath, path }: {
 export const LostReasonTable = ({ data }: { data: any[] }) => {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [chartDimension, setChartDimension] = useState<'platform' | 'campaign' | 'adCode' | 'project' | 'vendor'>('platform');
+  const [selectedTrendReason, setSelectedTrendReason] = useState<string>('All');
 
   const { groupedData, lostReasons, totals } = useMemo(() => {
     const lostData = data.filter(r => r._derived?.lostReason && r._derived.lostReason.trim() !== '');
@@ -182,6 +183,30 @@ export const LostReasonTable = ({ data }: { data: any[] }) => {
       .slice(0, 15); // Top 15 dimension values
   }, [data, chartDimension]);
 
+  const trendData = useMemo(() => {
+    const datesMap = new Map<string, { date: string; dateObj: Date; count: number }>();
+    
+    data.forEach((row) => {
+      const derived = row._derived || {};
+      const reason = derived.lostReason?.trim();
+      const dateStr = derived.date; // assuming string
+      const dateObj = derived.dateObject ? new Date(derived.dateObject) : new Date(dateStr);
+      
+      if (reason && reason !== '' && dateStr) {
+        if (selectedTrendReason === 'All' || reason === selectedTrendReason) {
+          if (!datesMap.has(dateStr)) {
+            datesMap.set(dateStr, { date: dateStr, dateObj, count: 0 });
+          }
+          datesMap.get(dateStr)!.count += 1;
+        }
+      }
+    });
+
+    return Array.from(datesMap.values())
+      .filter((d) => !isNaN(d.dateObj.getTime()))
+      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+      .map(d => ({ date: d.date, count: d.count }));
+  }, [data, selectedTrendReason]);
   const togglePath = (path: string) => {
     const newPaths = new Set(expandedPaths);
     if (newPaths.has(path)) {
@@ -203,42 +228,91 @@ export const LostReasonTable = ({ data }: { data: any[] }) => {
   return (
     <div className="mt-6 lg:mt-8 space-y-6">
       {/* Chart Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-            <BarChart2 className="w-4 h-4" /> Lost Reasons Breakdown
-          </h3>
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <span className="text-slate-500">Group By:</span>
-            <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
-              <button 
-                onClick={() => setChartDimension('platform')}
-                className={`px-3 py-1 text-xs rounded-md transition-all ${chartDimension === 'platform' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
-              >Platform</button>
-              <button 
-                onClick={() => setChartDimension('campaign')}
-                className={`px-3 py-1 text-xs rounded-md transition-all ${chartDimension === 'campaign' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
-              >Campaign</button>
-              <button 
-                onClick={() => setChartDimension('adCode')}
-                className={`px-3 py-1 text-xs rounded-md transition-all ${chartDimension === 'adCode' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
-              >Ad Code</button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+              <BarChart2 className="w-4 h-4" /> Lost Reasons Breakdown
+            </h3>
+            <div className="flex items-center gap-2 text-sm font-medium w-full sm:w-auto">
+              <span className="text-slate-500 whitespace-nowrap">Group By:</span>
+              <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 overflow-x-auto hide-scrollbar w-full sm:w-auto">
+                <button 
+                  onClick={() => setChartDimension('platform')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-all whitespace-nowrap ${chartDimension === 'platform' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                >Platform</button>
+                <button 
+                  onClick={() => setChartDimension('campaign')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-all whitespace-nowrap ${chartDimension === 'campaign' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                >Campaign</button>
+                <button 
+                  onClick={() => setChartDimension('adCode')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-all whitespace-nowrap ${chartDimension === 'adCode' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                >Ad Code</button>
+              </div>
             </div>
           </div>
+          <div className="h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 5, right: 30, bottom: 25, left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                <Tooltip content={<StackedBarTooltip />} cursor={{fill: '#f8fafc'}} />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
+                {lostReasons.map((lr, index) => (
+                  <Bar key={lr} stackId="a" dataKey={lr} name={lr} fill={COLORS[index % COLORS.length]} barSize={40} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="h-[350px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 5, right: 30, bottom: 25, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-              <Tooltip content={<StackedBarTooltip />} cursor={{fill: '#f8fafc'}} />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
-              {lostReasons.map((lr, index) => (
-                <Bar key={lr} stackId="a" dataKey={lr} name={lr} fill={COLORS[index % COLORS.length]} barSize={40} />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+              <BarChart2 className="w-4 h-4" /> Lost Reason Trend
+            </h3>
+            <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 text-sm font-medium w-full sm:w-auto">
+              <span className="text-slate-500 whitespace-nowrap">Reason:</span>
+              <div className="relative w-full sm:w-auto">
+                <select 
+                  className="appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-1.5 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all w-full sm:w-auto max-w-[200px]"
+                  value={selectedTrendReason}
+                  onChange={(e) => setSelectedTrendReason(e.target.value)}
+                >
+                  <option value="All">All Lost Reasons</option>
+                  {lostReasons.map(lr => (
+                    <option key={lr} value={lr}>{lr}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+          <div className="h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData} margin={{ top: 5, right: 30, bottom: 25, left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} dy={10} minTickGap={30} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '0.5rem', color: '#f8fafc' }}
+                  itemStyle={{ color: '#fff', fontWeight: 600 }}
+                  labelStyle={{ color: '#cbd5e1', marginBottom: '4px' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="count" 
+                  name={selectedTrendReason === 'All' ? 'Total Lost Leads' : selectedTrendReason} 
+                  stroke="#6366f1" 
+                  strokeWidth={3} 
+                  dot={{ fill: '#6366f1', strokeWidth: 2, r: 4 }} 
+                  activeDot={{ r: 6, fill: '#4f46e5' }} 
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 

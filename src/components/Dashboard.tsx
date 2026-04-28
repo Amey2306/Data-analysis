@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { 
   TrendingUp, TrendingDown,
-  Upload, Search, Download, CheckCircle2, Filter, CalendarDays, Check, X, ChevronDown, ChevronRight
+  Upload, Search, Download, CheckCircle2, Filter, CalendarDays, Check, X, ChevronDown, ChevronRight, Menu
 } from "lucide-react";
 import Papa from "papaparse";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui";
@@ -56,10 +56,12 @@ export function Dashboard() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTableView, setActiveTableView] = useState<'drilldown' | 'walkin' | 'lostreason' | 'raw'>('drilldown');
   const [openFilters, setOpenFilters] = useState<Record<string, boolean>>({ project: true, vendor: true, platform: true, adset: true });
+  const [dailyTrendDimension, setDailyTrendDimension] = useState<'total' | 'platform' | 'campaign' | 'adCode'>('total');
   const [rawUploadData, setRawUploadData] = useState<any[]>(() => 
     adSetPerformance.map(row => ({ ...row, _derived: { ...row } }))
   );
   const [rawHeaders, setRawHeaders] = useState<string[]>(Object.keys(adSetPerformance[0] || {}));
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const uniqueProjects = ['All', ...Array.from(new Set(adSetData.map(p => p.project)))];
   const uniqueVendors = Array.from(new Set(adSetData.map(c => c.vendor)));
@@ -186,6 +188,42 @@ export function Dashboard() {
   const trendChartData = Object.entries(trendDataMap)
     .map(([date, data]) => ({ date, spend: data.spend, leads: data.leads, walkins: data.walkins }))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const { dailyLeadFlowChartData, dailyLeadFlowKeys } = useMemo(() => {
+    if (dailyTrendDimension === 'total') {
+      return { dailyLeadFlowChartData: trendChartData, dailyLeadFlowKeys: ['leads', 'walkins'] };
+    }
+    
+    const datesMap = new Map<string, any>();
+    const keyTotals = new Map<string, number>();
+
+    filteredAdSets.forEach(d => {
+      if (d.date) {
+        if (!datesMap.has(d.date)) datesMap.set(d.date, { date: d.date });
+        const obj = datesMap.get(d.date);
+        
+        let key = d[dailyTrendDimension] || 'Unknown';
+        if (typeof key === 'string' && key.trim() === '') key = 'Unknown';
+        
+        const leads = d.leads || 0;
+        obj[key] = (obj[key] || 0) + leads;
+        keyTotals.set(key, (keyTotals.get(key) || 0) + leads);
+      }
+    });
+
+    const sortedKeys = Array.from(keyTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(k => k[0])
+      .slice(0, 10); // Show top 10
+
+    const chartData = Array.from(datesMap.values())
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return { 
+      dailyLeadFlowChartData: chartData, 
+      dailyLeadFlowKeys: sortedKeys 
+    };
+  }, [trendChartData, filteredAdSets, dailyTrendDimension]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -402,16 +440,22 @@ export function Dashboard() {
   return (
     <main className="flex-1 flex flex-col min-w-0">
       {/* Header */}
-      <header className="h-16 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0">
+      <header className="h-16 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 relative z-20">
         <div className="flex items-center gap-3">
+          <button 
+            className="lg:hidden p-1.5 -ml-1.5 text-slate-500 hover:text-slate-900 focus:outline-none rounded-md hover:bg-slate-100 transition-colors"
+            onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          >
+            {isMobileSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
           <div className="flex justify-center items-center w-8 h-8 rounded shrink-0 bg-indigo-600 text-white">
             <TrendingUp strokeWidth={2.5} className="w-5 h-5" />
           </div>
-          <span className="text-xl font-bold text-slate-900 tracking-tight">PropAnalytics</span>
+          <span className="text-xl font-bold text-slate-900 tracking-tight hidden sm:block">PropAnalytics</span>
           <div className="h-6 w-px bg-slate-200 mx-2 hidden sm:block"></div>
-          <span className="text-sm font-medium text-slate-500 hidden sm:inline text-nowrap">Dashboard Analytics</span>
+          <span className="text-sm font-medium text-slate-500 font-medium truncate max-w-[120px] sm:max-w-none">Dashboard</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="relative hidden md:block">
             <input
               type="text"
@@ -445,13 +489,33 @@ export function Dashboard() {
       )}
 
       {/* Main Container width Sidebar Filter */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         
+        {/* Mobile Sidebar Overlay */}
+        {isMobileSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden" 
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+        )}
+
         {/* Filter Sidebar (Like Power BI) */}
-        <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
-          <div className="p-4 border-b border-slate-200 bg-white flex items-center gap-2">
-            <Filter className="w-4 h-4 text-indigo-600" />
-            <h2 className="font-bold text-slate-800 text-sm">Report Filters</h2>
+        <div className={`
+          fixed lg:static inset-y-0 left-0 z-50 lg:z-0
+          w-[280px] lg:w-64 bg-slate-50 border-r border-slate-200 
+          flex flex-col shrink-0 overflow-y-auto custom-scrollbar
+          transform transition-transform duration-300 ease-in-out
+          ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          h-full lg:h-auto
+        `}>
+          <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between lg:justify-start gap-2">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-indigo-600" />
+              <h2 className="font-bold text-slate-800 text-sm">Report Filters</h2>
+            </div>
+            <button className="lg:hidden text-slate-500 hover:text-slate-800" onClick={() => setIsMobileSidebarOpen(false)}>
+              <X className="w-5 h-5" />
+            </button>
           </div>
           
           <div className="p-5 border-b border-slate-200">
@@ -638,12 +702,12 @@ export function Dashboard() {
         <div className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto bg-white">
         
         {/* Title Area */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <h1 className="text-2xl font-bold text-slate-900">Sales Performance Overview</h1>
-          <div className="flex gap-2 text-xs font-semibold uppercase tracking-wider shrink-0 overflow-x-auto pb-1 sm:pb-0">
-            <button className="px-3 py-1 bg-white border border-slate-200 rounded text-slate-500 hover:bg-slate-50 shrink-0">Week</button>
-            <button className="px-3 py-1 bg-white border border-slate-200 rounded text-slate-500 hover:bg-slate-50 shrink-0">Month</button>
-            <button className="px-3 py-1 bg-slate-900 text-white rounded shrink-0">Quarter</button>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 shrink-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Sales Performance</h1>
+          <div className="flex gap-2 text-xs font-semibold uppercase tracking-wider overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar">
+            <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 shrink-0 shadow-sm">Week</button>
+            <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 shrink-0 shadow-sm">Month</button>
+            <button className="px-3 py-1.5 bg-slate-900 text-white rounded-md shrink-0 shadow-sm">Quarter</button>
           </div>
         </div>
 
@@ -817,23 +881,53 @@ export function Dashboard() {
         {/* Analytics Row: Full Width Daily Lead Flow */}
         <div className="grid grid-cols-1 gap-6">
           <Card className="min-h-[350px]">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <CardTitle>Daily Lead Flow Trend</CardTitle>
-              <div className="flex gap-4 text-xs text-slate-500 font-medium">
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> Leads</div>
-                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Walk-ins</div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-sm font-medium w-full sm:w-auto">
+                <span className="text-slate-500 whitespace-nowrap">Group By:</span>
+                <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 overflow-x-auto hide-scrollbar w-full sm:w-auto">
+                  <button 
+                    onClick={() => setDailyTrendDimension('total')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all whitespace-nowrap ${dailyTrendDimension === 'total' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                  >Total</button>
+                  <button 
+                    onClick={() => setDailyTrendDimension('platform')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all whitespace-nowrap ${dailyTrendDimension === 'platform' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                  >Platform</button>
+                  <button 
+                    onClick={() => setDailyTrendDimension('campaign')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all whitespace-nowrap ${dailyTrendDimension === 'campaign' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                  >Campaign</button>
+                  <button 
+                    onClick={() => setDailyTrendDimension('adCode')}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-all whitespace-nowrap ${dailyTrendDimension === 'adCode' ? 'bg-white shadow-sm text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'}`}
+                  >Ad Code</button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="h-[280px] w-full mt-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendChartData} margin={{ top: 5, right: 20, bottom: 20, left: 0 }}>
+                  <LineChart data={dailyLeadFlowChartData} margin={{ top: 5, right: 20, bottom: 20, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12, fontWeight: 500}} dy={10} />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12, fontWeight: 500}} dy={10} minTickGap={30} />
                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="leads" name="Leads" stroke="#4f46e5" strokeWidth={3} dot={{ r: 4, fill: '#4f46e5', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                    <Line type="monotone" dataKey="walkins" name="Walk-ins" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    {dailyTrendDimension === 'total' ? (
+                      <>
+                        <Line type="monotone" dataKey="leads" name="Leads" stroke="#4f46e5" strokeWidth={3} dot={{ r: 4, fill: '#4f46e5', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                        <Line type="monotone" dataKey="walkins" name="Walk-ins" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                      </>
+                    ) : (
+                      dailyLeadFlowKeys.map((key, index) => {
+                        const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899'];
+                        const color = COLORS[index % COLORS.length];
+                        return (
+                          <Line key={key} type="monotone" dataKey={key} name={key} stroke={color} strokeWidth={2} dot={{ r: 3, fill: color, strokeWidth: 1, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                        )
+                      })
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
