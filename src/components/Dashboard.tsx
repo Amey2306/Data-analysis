@@ -135,6 +135,73 @@ export function Dashboard() {
     setOpenFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const parseLocal = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const p = dateStr.slice(0, 10).split("-");
+    if (p.length === 3)
+      return new Date(
+        parseInt(p[0], 10),
+        parseInt(p[1], 10) - 1,
+        parseInt(p[2], 10),
+      );
+    return new Date(dateStr);
+  };
+
+  const latestDataDate = useMemo(() => {
+    let maxTime = 0;
+    const processDate = (dString: string) => {
+      const time = parseLocal(dString).getTime();
+      if (!isNaN(time) && time > maxTime) maxTime = time;
+    };
+    rawUploadData.forEach(
+      (r) => r._derived?.date && processDate(r._derived.date),
+    );
+    adSetData.forEach((r) => r.date && processDate(r.date));
+    return maxTime > 0 ? new Date(maxTime) : new Date();
+  }, [rawUploadData, adSetData]);
+
+  const isDateInRange = (dateStr: string, filter: string) => {
+    if (!dateStr) return true;
+    if (filter === "Custom Dates..." && startDate && endDate) {
+      return dateStr >= startDate && dateStr <= endDate;
+    }
+    if (filter === "All Time") return true;
+
+    const date = parseLocal(dateStr);
+    if (isNaN(date.getTime())) return true;
+
+    // Reset latestDataDate to end of day to include the whole last day
+    const latestEndOfDay = new Date(latestDataDate);
+    latestEndOfDay.setHours(23, 59, 59, 999);
+
+    if (filter === "This Week (Mon-Sun)" || filter === "Week") {
+      const day = latestDataDate.getDay();
+      const diff = latestDataDate.getDate() - day + (day === 0 ? -6 : 1);
+      const startOfWeek = new Date(latestDataDate);
+      startOfWeek.setDate(diff);
+      startOfWeek.setHours(0, 0, 0, 0);
+      return date >= startOfWeek && date <= latestEndOfDay;
+    }
+    if (filter === "This Month" || filter === "Month") {
+      const startOfMonth = new Date(
+        latestDataDate.getFullYear(),
+        latestDataDate.getMonth(),
+        1,
+      );
+      return date >= startOfMonth && date <= latestEndOfDay;
+    }
+    if (filter === "This Quarter" || filter === "Quarter") {
+      const currentQuarter = Math.floor(latestDataDate.getMonth() / 3);
+      const startOfQuarter = new Date(
+        latestDataDate.getFullYear(),
+        currentQuarter * 3,
+        1,
+      );
+      return date >= startOfQuarter && date <= latestEndOfDay;
+    }
+    return true;
+  };
+
   const filteredRawRows = useMemo(() => {
     return rawUploadData.filter((row) => {
       if (!row._derived) return true;
@@ -151,15 +218,7 @@ export function Dashboard() {
         (camp.adSet &&
           camp.adSet.toLowerCase().includes(adSetSearch.toLowerCase()));
 
-      let matchDate = true;
-      if (
-        timeFilter === "Custom Dates..." &&
-        startDate &&
-        endDate &&
-        camp.date
-      ) {
-        matchDate = camp.date >= startDate && camp.date <= endDate;
-      }
+      const matchDate = isDateInRange(camp.date, timeFilter);
 
       return (
         matchProject && matchVendor && matchPlatform && matchAdSet && matchDate
@@ -174,6 +233,7 @@ export function Dashboard() {
     timeFilter,
     startDate,
     endDate,
+    latestDataDate,
   ]);
 
   const filteredAdSets = useMemo(() => {
@@ -189,15 +249,7 @@ export function Dashboard() {
         adSetSearch === "" ||
         camp.adSet.toLowerCase().includes(adSetSearch.toLowerCase());
 
-      let matchDate = true;
-      if (
-        timeFilter === "Custom Dates..." &&
-        startDate &&
-        endDate &&
-        camp.date
-      ) {
-        matchDate = camp.date >= startDate && camp.date <= endDate;
-      }
+      const matchDate = isDateInRange(camp.date, timeFilter);
 
       return (
         matchProject && matchVendor && matchPlatform && matchAdSet && matchDate
@@ -211,6 +263,8 @@ export function Dashboard() {
     timeFilter,
     startDate,
     endDate,
+    latestDataDate,
+    adSetData,
   ]);
 
   // Derived KPI computations
@@ -1000,299 +1054,288 @@ export function Dashboard() {
         {/* Filter Sidebar (Like Power BI) */}
         <div
           className={`
-          fixed lg:static inset-x-0 bottom-0 lg:inset-auto z-50 lg:z-0
-          w-full lg:w-64 bg-slate-50 border-t lg:border-t-0 lg:border-r border-slate-200 
-          flex flex-col shrink-0 lg:overflow-y-auto custom-scrollbar
+          fixed lg:static inset-y-0 left-0 z-50 lg:z-0
+          w-[280px] lg:w-64 bg-slate-50 border-r border-slate-200 
+          flex flex-col shrink-0 overflow-y-auto custom-scrollbar
           transform transition-transform duration-300 ease-in-out
-          rounded-t-3xl lg:rounded-none shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.2)] lg:shadow-none
-          ${isMobileSidebarOpen ? "translate-y-0" : "translate-y-full lg:translate-y-0"}
-          h-[85vh] lg:h-auto overflow-hidden
+          ${isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          h-full lg:h-auto
         `}
         >
-          {/* Mobile Drag Handle */}
-          <div
-            className="lg:hidden w-full flex justify-center pt-3 pb-1 bg-white cursor-pointer"
-            onClick={() => setIsMobileSidebarOpen(false)}
-          >
-            <div className="w-12 h-1.5 bg-slate-200 hover:bg-slate-300 rounded-full transition-colors"></div>
-          </div>
           <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between lg:justify-start gap-2">
             <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-600" />
-              <h2 className="font-bold text-slate-800 text-base sm:text-sm">
+              <Filter className="w-4 h-4 text-indigo-600" />
+              <h2 className="font-bold text-slate-800 text-sm">
                 Report Filters
               </h2>
             </div>
             <button
-              className="lg:hidden text-slate-500 hover:text-slate-800 p-2 -mr-2 bg-slate-100/50 rounded-full"
+              className="lg:hidden text-slate-500 hover:text-slate-800"
               onClick={() => setIsMobileSidebarOpen(false)}
             >
-              <X className="w-5 h-5 sm:w-5 sm:h-5" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto lg:overflow-visible">
-            <div className="p-4 sm:p-5 border-b border-slate-200 bg-white sm:bg-transparent">
-              <h3 className="text-xs sm:text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5">
-                <CalendarDays className="w-4 h-4 sm:w-3.5 sm:h-3.5" /> Date
-                Range
-              </h3>
-              <select
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value)}
-                className="w-full bg-slate-50 sm:bg-white border border-slate-200 text-slate-700 text-base sm:text-sm font-medium rounded-xl sm:rounded-lg px-4 py-3 sm:px-3 sm:py-2 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all hover:border-slate-300 cursor-pointer appearance-none"
+          <div className="p-5 border-b border-slate-200">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5" /> Date Range
+            </h3>
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value)}
+              className="w-full bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg px-3 py-2 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 shadow-sm transition-all hover:border-slate-300 cursor-pointer"
+            >
+              <option value="This Week (Mon-Sun)">This Week (Mon-Sun)</option>
+              <option value="This Month">This Month</option>
+              <option value="This Quarter">This Quarter</option>
+              <option value="Custom Dates...">Custom Dates...</option>
+            </select>
+            {timeFilter === "Custom Dates..." && (
+              <div className="mt-4 flex gap-2 animate-in fade-in slide-in-from-top-1 bg-slate-100 p-2 rounded-lg border border-slate-200/60">
+                <div className="flex-1 flex flex-col gap-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold ml-1">
+                    From
+                  </span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full text-xs font-medium border border-transparent hover:border-slate-300 rounded bg-white px-2 py-1.5 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-sm"
+                  />
+                </div>
+                <div className="flex-1 flex flex-col gap-1">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold ml-1">
+                    To
+                  </span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full text-xs font-medium border border-transparent hover:border-slate-300 rounded bg-white px-2 py-1.5 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* Project Filter */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+              <button
+                onClick={() => toggleFilter("project")}
+                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors"
               >
-                <option value="This Week (Mon-Sun)">This Week (Mon-Sun)</option>
-                <option value="This Month">This Month</option>
-                <option value="This Quarter">This Quarter</option>
-                <option value="Custom Dates...">Custom Dates...</option>
-              </select>
-              {timeFilter === "Custom Dates..." && (
-                <div className="mt-4 flex gap-2 animate-in fade-in slide-in-from-top-1 bg-slate-100 p-2 rounded-lg border border-slate-200/60">
-                  <div className="flex-1 flex flex-col gap-1">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold ml-1">
-                      From
-                    </span>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full text-xs font-medium border border-transparent hover:border-slate-300 rounded bg-white px-2 py-1.5 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-sm"
-                    />
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1">
-                    <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold ml-1">
-                      To
-                    </span>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full text-xs font-medium border border-transparent hover:border-slate-300 rounded bg-white px-2 py-1.5 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-sm"
-                    />
-                  </div>
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Project Filter
+                </h3>
+                {openFilters.project ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+              {openFilters.project && (
+                <div className="p-2 space-y-1 max-h-[30vh] overflow-y-auto custom-scrollbar border-t border-slate-100">
+                  {uniqueProjects.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setGlobalProjectFilter(p)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-200 border ${
+                        globalProjectFilter === p
+                          ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+                          : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <span
+                        className={`truncate w-full text-left ${globalProjectFilter === p ? "font-semibold" : "font-medium"}`}
+                      >
+                        {p === "All" ? "All Projects" : p}
+                      </span>
+                      {globalProjectFilter === p && (
+                        <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />
+                      )}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
 
-            <div className="p-4 space-y-4">
-              {/* Project Filter */}
-              <div className="border border-slate-200 rounded-2xl sm:rounded-xl overflow-hidden bg-white shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] sm:shadow-sm">
-                <button
-                  onClick={() => toggleFilter("project")}
-                  className="w-full flex items-center justify-between p-4 sm:p-3 bg-slate-50 hover:bg-slate-100 transition-colors"
-                >
-                  <h3 className="text-[11px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    Project Filter
+            {/* Vendor Filter */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+              <div
+                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
+                onClick={() => toggleFilter("vendor")}
+              >
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Vendors
                   </h3>
-                  {openFilters.project ? (
-                    <ChevronDown className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
+                  {selectedVendors.length > 0 && (
+                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {selectedVendors.length}
+                    </span>
                   )}
-                </button>
-                {openFilters.project && (
-                  <div className="p-2 space-y-1 max-h-[35vh] sm:max-h-[30vh] overflow-y-auto custom-scrollbar border-t border-slate-100">
-                    {uniqueProjects.map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setGlobalProjectFilter(p)}
-                        className={`w-full flex items-center justify-between px-4 py-3 sm:px-3 sm:py-2 rounded-xl sm:rounded-lg text-base sm:text-sm transition-all duration-200 border ${
-                          globalProjectFilter === p
-                            ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                            : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                      >
-                        <span
-                          className={`truncate w-full text-left ${globalProjectFilter === p ? "font-semibold" : "font-medium"}`}
-                        >
-                          {p === "All" ? "All Projects" : p}
-                        </span>
-                        {globalProjectFilter === p && (
-                          <CheckCircle2 className="w-5 h-5 sm:w-4 sm:h-4 text-indigo-600 shrink-0 ml-2" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Vendor Filter */}
-              <div className="border border-slate-200 rounded-2xl sm:rounded-xl overflow-hidden bg-white shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] sm:shadow-sm">
-                <div
-                  className="w-full flex items-center justify-between p-4 sm:p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
-                  onClick={() => toggleFilter("vendor")}
-                >
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-[11px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                      Vendors
-                    </h3>
-                    {selectedVendors.length > 0 && (
-                      <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        {selectedVendors.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {selectedVendors.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedVendors([]);
-                        }}
-                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-2 py-0.5 rounded-full transition-colors border border-indigo-100"
-                      >
-                        Clear
-                      </button>
-                    )}
-                    {openFilters.vendor ? (
-                      <ChevronDown className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
-                    )}
-                  </div>
                 </div>
-                {openFilters.vendor && (
-                  <div className="p-2 space-y-1 max-h-[30vh] sm:max-h-[25vh] overflow-y-auto custom-scrollbar border-t border-slate-100">
-                    {uniqueVendors.map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => handleVendorToggle(v)}
-                        className={`w-full flex items-center justify-between px-4 py-3 sm:px-3 sm:py-2 rounded-xl sm:rounded-lg text-base sm:text-sm transition-all duration-200 border ${
+                <div className="flex items-center gap-2">
+                  {selectedVendors.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVendors([]);
+                      }}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-2 py-0.5 rounded-full transition-colors border border-indigo-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  {openFilters.vendor ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+              </div>
+              {openFilters.vendor && (
+                <div className="p-2 space-y-1 max-h-[25vh] overflow-y-auto custom-scrollbar border-t border-slate-100">
+                  {uniqueVendors.map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => handleVendorToggle(v)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-200 border ${
+                        selectedVendors.includes(v)
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-800 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+                          : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-slate-100"
+                      }`}
+                    >
+                      <span
+                        className={`truncate w-full text-left ${selectedVendors.includes(v) ? "font-semibold" : "font-medium"}`}
+                      >
+                        {v}
+                      </span>
+                      <div
+                        className={`w-4 h-4 rounded items-center justify-center flex shrink-0 ml-2 transition-colors ${
                           selectedVendors.includes(v)
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-800 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                            : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-slate-100"
+                            ? "bg-emerald-600 text-white border border-emerald-600"
+                            : "border border-slate-300 bg-white"
                         }`}
                       >
-                        <span
-                          className={`truncate w-full text-left ${selectedVendors.includes(v) ? "font-semibold" : "font-medium"}`}
-                        >
-                          {v}
-                        </span>
-                        <div
-                          className={`w-5 h-5 sm:w-4 sm:h-4 rounded items-center justify-center flex shrink-0 ml-2 transition-colors ${
-                            selectedVendors.includes(v)
-                              ? "bg-emerald-600 text-white border border-emerald-600"
-                              : "border border-slate-300 bg-white"
-                          }`}
-                        >
-                          {selectedVendors.includes(v) && (
-                            <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Platform Filter */}
-              <div className="border border-slate-200 rounded-2xl sm:rounded-xl overflow-hidden bg-white shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] sm:shadow-sm">
-                <div
-                  className="w-full flex items-center justify-between p-4 sm:p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
-                  onClick={() => toggleFilter("platform")}
-                >
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-[11px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                      Platforms
-                    </h3>
-                    {selectedPlatforms.length > 0 && (
-                      <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        {selectedPlatforms.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {selectedPlatforms.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPlatforms([]);
-                        }}
-                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-2 py-0.5 rounded-full transition-colors border border-indigo-100"
-                      >
-                        Clear
-                      </button>
-                    )}
-                    {openFilters.platform ? (
-                      <ChevronDown className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
-                    )}
-                  </div>
+                        {selectedVendors.includes(v) && (
+                          <Check className="w-3 h-3" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                {openFilters.platform && (
-                  <div className="p-2 space-y-1 max-h-[30vh] sm:max-h-[25vh] overflow-y-auto custom-scrollbar border-t border-slate-100">
-                    {uniquePlatforms.map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => handlePlatformToggle(p)}
-                        className={`w-full flex items-center justify-between px-4 py-3 sm:px-3 sm:py-2 rounded-xl sm:rounded-lg text-base sm:text-sm transition-all duration-200 border ${
-                          selectedPlatforms.includes(p)
-                            ? "bg-amber-50 border-amber-200 text-amber-800 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                            : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-slate-100"
-                        }`}
-                      >
-                        <span
-                          className={`truncate w-full text-left ${selectedPlatforms.includes(p) ? "font-semibold" : "font-medium"}`}
-                        >
-                          {p}
-                        </span>
-                        <div
-                          className={`w-5 h-5 sm:w-4 sm:h-4 rounded items-center justify-center flex shrink-0 ml-2 transition-colors ${
-                            selectedPlatforms.includes(p)
-                              ? "bg-amber-500 text-white border border-amber-500"
-                              : "border border-slate-300 bg-white"
-                          }`}
-                        >
-                          {selectedPlatforms.includes(p) && (
-                            <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
+            </div>
 
-              {/* Ad Set Search */}
-              <div className="border border-slate-200 rounded-2xl sm:rounded-xl overflow-hidden bg-white shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] sm:shadow-sm">
-                <div
-                  className="w-full flex items-center justify-between p-4 sm:p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
-                  onClick={() => toggleFilter("adset")}
-                >
-                  <h3 className="text-[11px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    Ad Set Name
+            {/* Platform Filter */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+              <div
+                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
+                onClick={() => toggleFilter("platform")}
+              >
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Platforms
                   </h3>
-                  {openFilters.adset ? (
-                    <ChevronDown className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4 text-slate-400" />
+                  {selectedPlatforms.length > 0 && (
+                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {selectedPlatforms.length}
+                    </span>
                   )}
                 </div>
-                {openFilters.adset && (
-                  <div className="p-4 sm:p-3 border-t border-slate-100">
-                    <div className="relative group">
-                      <input
-                        type="text"
-                        placeholder="Search Ad Sets..."
-                        value={adSetSearch}
-                        onChange={(e) => setAdSetSearch(e.target.value)}
-                        className="w-full bg-slate-50 sm:bg-white border border-slate-200 rounded-xl sm:rounded-lg px-4 py-3 pl-11 sm:px-3 sm:py-2 sm:pl-9 text-base sm:text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all shadow-sm focus:border-slate-300"
-                      />
-                      <Search className="absolute left-4 sm:left-3 top-1/2 -translate-y-1/2 w-5 h-5 sm:w-4 sm:h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                      {adSetSearch && (
-                        <button
-                          onClick={() => setAdSetSearch("")}
-                          className="absolute right-3 sm:right-2 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-5 sm:h-5 flex items-center justify-center rounded-full bg-slate-200 sm:bg-slate-100 text-slate-600 sm:text-slate-500 hover:bg-slate-300 hover:text-slate-700 transition-colors"
-                        >
-                          <X className="w-4 h-4 sm:w-3 sm:h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2">
+                  {selectedPlatforms.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPlatforms([]);
+                      }}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-2 py-0.5 rounded-full transition-colors border border-indigo-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  {openFilters.platform ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+              </div>
+              {openFilters.platform && (
+                <div className="p-2 space-y-1 max-h-[25vh] overflow-y-auto custom-scrollbar border-t border-slate-100">
+                  {uniquePlatforms.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => handlePlatformToggle(p)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-200 border ${
+                        selectedPlatforms.includes(p)
+                          ? "bg-amber-50 border-amber-200 text-amber-800 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+                          : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-slate-100"
+                      }`}
+                    >
+                      <span
+                        className={`truncate w-full text-left ${selectedPlatforms.includes(p) ? "font-semibold" : "font-medium"}`}
+                      >
+                        {p}
+                      </span>
+                      <div
+                        className={`w-4 h-4 rounded items-center justify-center flex shrink-0 ml-2 transition-colors ${
+                          selectedPlatforms.includes(p)
+                            ? "bg-amber-500 text-white border border-amber-500"
+                            : "border border-slate-300 bg-white"
+                        }`}
+                      >
+                        {selectedPlatforms.includes(p) && (
+                          <Check className="w-3 h-3" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Ad Set Search */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+              <div
+                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
+                onClick={() => toggleFilter("adset")}
+              >
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Ad Set Name
+                </h3>
+                {openFilters.adset ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
                 )}
               </div>
+              {openFilters.adset && (
+                <div className="p-3 border-t border-slate-100">
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      placeholder="Search Ad Sets..."
+                      value={adSetSearch}
+                      onChange={(e) => setAdSetSearch(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-9 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all shadow-sm focus:border-slate-300"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                    {adSetSearch && (
+                      <button
+                        onClick={() => setAdSetSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1305,13 +1348,22 @@ export function Dashboard() {
               Sales Performance
             </h1>
             <div className="flex gap-2 text-xs font-semibold uppercase tracking-wider overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar">
-              <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 shrink-0 shadow-sm">
+              <button
+                onClick={() => setTimeFilter("This Week (Mon-Sun)")}
+                className={`px-3 py-1.5 border rounded-md shrink-0 shadow-sm transition-colors ${timeFilter === "This Week (Mon-Sun)" ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+              >
                 Week
               </button>
-              <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-slate-500 hover:bg-slate-50 shrink-0 shadow-sm">
+              <button
+                onClick={() => setTimeFilter("This Month")}
+                className={`px-3 py-1.5 border rounded-md shrink-0 shadow-sm transition-colors ${timeFilter === "This Month" ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+              >
                 Month
               </button>
-              <button className="px-3 py-1.5 bg-slate-900 text-white rounded-md shrink-0 shadow-sm">
+              <button
+                onClick={() => setTimeFilter("This Quarter")}
+                className={`px-3 py-1.5 border rounded-md shrink-0 shadow-sm transition-colors ${timeFilter === "This Quarter" ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+              >
                 Quarter
               </button>
             </div>
