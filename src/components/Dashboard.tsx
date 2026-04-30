@@ -785,13 +785,13 @@ export function Dashboard() {
               mappedData = Array.from(aggregatedData.values());
             } else {
               // Existing logic for summarized dashboard structural dumps
-              mappedData = validRows
-                .map((row: any, i) => {
-                  const getVal = (keys: string[]) =>
-                    row[keys.find((k: string) => row[k] !== undefined) || ""] ||
-                    "";
+              mappedData = processedRawRows
+                .map((rowWrapper: any, i) => {
+                  const row = rowWrapper; // original row data is spread into here
+                  
                   const getNum = (keys: string[]) => {
-                    const val = getVal(keys);
+                    // Try to find the key case-insensitively using exact same helper
+                    const val = getValRawWrapper(row, keys);
                     if (typeof val === "string") {
                       return Number(val.replace(/[$,]/g, "")) || 0;
                     }
@@ -813,111 +813,16 @@ export function Dashboard() {
                   ]);
                   const cpl = leads > 0 ? Math.round(spends / leads) : 0;
 
-                  const dateVal = getVal(["Date", "date", "Day", "day"]);
-                  let parsedDate = new Date().toISOString().split("T")[0];
-                  if (dateVal) {
-                    const d = new Date(dateVal);
-                    if (!isNaN(d.getTime())) {
-                      parsedDate = d.toISOString().split("T")[0];
-                    } else {
-                      parsedDate = dateVal;
-                    }
-                  }
-
                   return {
                     id: `csv-${Date.now()}-${i}`,
-                    date: parsedDate,
-                    project:
-                      getVal([
-                        "Project",
-                        "project",
-                        "Project Name",
-                        "Marketing Project Name",
-                      ]) || "Overall Project",
-                    campaign:
-                      getVal([
-                        "Campaign",
-                        "campaign",
-                        "Campaign Name",
-                        "name",
-                        "Name",
-                      ]) || "Unknown Campaign",
-                    platform:
-                      getVal([
-                        "Platform",
-                        "platform",
-                        "Source",
-                        "Media",
-                        "Vendor Name",
-                        "Vendor Name: Vendor Name",
-                      ]) || "Unknown",
-                    vendor:
-                      getVal([
-                        "Vendor",
-                        "vendor",
-                        "Agency",
-                        "Actual Vendor Name",
-                      ]) || "Internal",
-                    adSet:
-                      getVal([
-                        "Ad Set",
-                        "adSet",
-                        "AdSet",
-                        "Ad Set Name",
-                        "AdGroupName",
-                        "Plan-Mix",
-                        "Plan mix",
-                      ]) || `AdSet ${i + 1}`,
-                    adCode:
-                      getVal([
-                        "Advertisement ID",
-                        "Advertisement Code",
-                        "Ad ID",
-                        "Ad Code",
-                        "AdID",
-                        "Ad_ID",
-                        "ad_id",
-                        "AD code",
-                        "UTM Ad",
-                        "Creative ID",
-                        "Ad Group ID",
-                        "advetisement code",
-                      ]) || "",
-                    walkinSource:
-                      getVal([
-                        "Walk-in Source",
-                        "Walk - In Source",
-                        "Walkin Source",
-                        "Walk in Source",
-                        "Site Visit Source",
-                        "SV Source",
-                        "Source of Walk-in",
-                        "Walkin Source Name",
-                        "Walkin Source: Walkin Source",
-                        "Site Visit Vendor",
-                        "Site Visit Source Name",
-                        "Walk In Vendor",
-                        "Channel",
-                        "Channel Type",
-                        "Walk-in Channel",
-                        "Site Visit Channel",
-                        "Final Source",
-                        "Closing Source",
-                        "Conversion Source",
-                        "Sub Source",
-                        "Source Type",
-                        "Visit Source",
-                        "Walkin Details",
-                      ]) ||
-                      getVal([
-                        "Platform",
-                        "platform",
-                        "Source",
-                        "Media",
-                        "Vendor Name",
-                        "Vendor Name: Vendor Name",
-                      ]) ||
-                      "Unknown",
+                    date: rowWrapper._derived.date,
+                    project: rowWrapper._derived.project,
+                    campaign: rowWrapper._derived.campaign,
+                    platform: rowWrapper._derived.platform,
+                    vendor: rowWrapper._derived.vendor,
+                    adSet: rowWrapper._derived.adSet === "General" ? `AdSet ${i + 1}` : rowWrapper._derived.adSet,
+                    adCode: rowWrapper._derived.adCode,
+                    walkinSource: rowWrapper._derived.walkinSource,
                     leads: leads,
                     qualified: getNum(["Qualified", "qualified", "Qual", "QL"]),
                     appointments: getNum([
