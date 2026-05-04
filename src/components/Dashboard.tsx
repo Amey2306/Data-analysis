@@ -723,6 +723,7 @@ export function Dashboard() {
                     appointments: 0,
                     walkins: 0,
                     bookings: 0,
+                    lost: 0,
                     spends: 0,
                     cpl: 0,
                   });
@@ -731,17 +732,12 @@ export function Dashboard() {
                 const agg = aggregatedData.get(key);
                 agg.leads += 1;
 
-                const isCapi =
-                  row["CAPI Top Funnel"] === "1" ||
-                  row["Assign To Sales"] === "1" ||
-                  row["Status"] === "Contacted";
                 if (
-                  isCapi ||
-                  String(row["Enquiry Status"])
-                    .toLowerCase()
-                    .includes("contact")
-                )
+                  String(row["CAPI Top Funnel"]).trim() === "1" ||
+                  row["CAPI Top Funnel"] === 1
+                ) {
                   agg.qualified += 1;
+                }
 
                 const enqStatus = String(
                   row["Enquiry Status"] || "",
@@ -771,6 +767,10 @@ export function Dashboard() {
                   agg.walkins += 1;
                   agg.appointments += 1;
                   agg.qualified += 1;
+                }
+
+                if (row._derived && row._derived.lostReason && row._derived.lostReason.trim() !== "") {
+                  agg.lost += 1;
                 }
 
                 if (
@@ -844,6 +844,13 @@ export function Dashboard() {
                       "Booking",
                       "Sales",
                       "Conversion",
+                    ]),
+                    lost: getNum([
+                      "Lost",
+                      "lost",
+                      "Lost Leads",
+                      "Lost Count",
+                      "Drop Off"
                     ]),
                     spends: spends,
                     cpl: cpl,

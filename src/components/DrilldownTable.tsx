@@ -14,6 +14,7 @@ interface AdSetData {
   appointments: number;
   walkins: number;
   bookings: number;
+  lost: number;
   spends: number;
   cpl: number;
 }
@@ -26,6 +27,7 @@ interface GroupResult {
   appointments: number;
   walkins: number;
   bookings: number;
+  lost: number;
   spends: number;
   children?: GroupResult[];
   rawRows?: AdSetData[];
@@ -51,6 +53,7 @@ const groupBy = (data: AdSetData[], keys: string[], level = 0): GroupResult[] =>
         appointments: 0,
         walkins: 0,
         bookings: 0,
+        lost: 0,
         spends: 0,
         rawRows: []
       });
@@ -62,6 +65,7 @@ const groupBy = (data: AdSetData[], keys: string[], level = 0): GroupResult[] =>
     g.appointments += row.appointments || 0;
     g.walkins += row.walkins || 0;
     g.bookings += row.bookings || 0;
+    g.lost += row.lost || 0;
     g.spends += row.spends || 0;
     g.rawRows!.push(row);
   });
@@ -97,6 +101,7 @@ const DrilldownRow = ({ node, expandedPaths, togglePath, path }: { node: GroupRe
   const qualPct = node.leads > 0 ? Math.round((node.qualified / node.leads) * 100) : 0;
   const apptPct = node.qualified > 0 ? Math.round((node.appointments / node.qualified) * 100) : 0;
   const walkPct = node.appointments > 0 ? Math.round((node.walkins / node.appointments) * 100) : 0;
+  const lostPct = node.leads > 0 ? Math.round((node.lost / node.leads) * 100) : 0;
 
   return (
     <>
@@ -131,6 +136,10 @@ const DrilldownRow = ({ node, expandedPaths, togglePath, path }: { node: GroupRe
         </td>
         <td className="px-4 py-3 text-right">
           <div className="font-semibold text-emerald-600">{node.bookings.toLocaleString()}</div>
+        </td>
+        <td className="px-4 py-3 text-right">
+          <div className="font-semibold text-rose-600">{node.lost.toLocaleString()}</div>
+          <div className="text-[10px] font-medium text-slate-400">{lostPct}%</div>
         </td>
 
         {/* Cost Data */}
@@ -173,10 +182,11 @@ export const DrilldownTable = ({ data }: { data: any[] }) => {
         acc.appointments += curr.appointments || 0;
         acc.walkins += curr.walkins || 0;
         acc.bookings += curr.bookings || 0;
+        acc.lost += curr.lost || 0;
         acc.spends += curr.spends || 0;
         return acc;
       },
-      { leads: 0, qualified: 0, appointments: 0, walkins: 0, bookings: 0, spends: 0 }
+      { leads: 0, qualified: 0, appointments: 0, walkins: 0, bookings: 0, lost: 0, spends: 0 }
     );
   }, [groupedData]);
 
@@ -184,6 +194,7 @@ export const DrilldownTable = ({ data }: { data: any[] }) => {
   const gtQualPct = grandTotal.leads > 0 ? Math.round((grandTotal.qualified / grandTotal.leads) * 100) : 0;
   const gtApptPct = grandTotal.qualified > 0 ? Math.round((grandTotal.appointments / grandTotal.qualified) * 100) : 0;
   const gtWalkPct = grandTotal.appointments > 0 ? Math.round((grandTotal.walkins / grandTotal.appointments) * 100) : 0;
+  const gtLostPct = grandTotal.leads > 0 ? Math.round((grandTotal.lost / grandTotal.leads) * 100) : 0;
 
   return (
     <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[600px] border border-slate-200">
@@ -196,6 +207,7 @@ export const DrilldownTable = ({ data }: { data: any[] }) => {
             <th className="px-4 py-3 whitespace-nowrap text-right">Appts (<span className="text-[9px]">%</span>)</th>
             <th className="px-4 py-3 whitespace-nowrap text-right">Walkins (<span className="text-[9px]">%</span>)</th>
             <th className="px-4 py-3 whitespace-nowrap text-right">Bookings</th>
+            <th className="px-4 py-3 whitespace-nowrap text-right text-rose-600">Lost (<span className="text-[9px] text-rose-500">%</span>)</th>
             <th className="px-4 py-3 whitespace-nowrap text-right border-l border-slate-200 bg-slate-200/50">Spends</th>
             <th className="px-4 py-3 whitespace-nowrap text-right">CPL (₹)</th>
           </tr>
@@ -207,7 +219,7 @@ export const DrilldownTable = ({ data }: { data: any[] }) => {
             ))
           ) : (
             <tr>
-              <td colSpan={8} className="px-6 py-12 text-center text-slate-500 text-sm bg-slate-50/50">
+              <td colSpan={9} className="px-6 py-12 text-center text-slate-500 text-sm bg-slate-50/50">
                 No data available to display. Please verify your filters or upload a CSV file.
               </td>
             </tr>
@@ -228,6 +240,9 @@ export const DrilldownTable = ({ data }: { data: any[] }) => {
                 {grandTotal.walkins.toLocaleString()} <span className="text-[10px] text-slate-500 font-normal ml-1">({gtWalkPct}%)</span>
               </td>
               <td className="px-4 py-3 text-right text-emerald-700">{grandTotal.bookings.toLocaleString()}</td>
+              <td className="px-4 py-3 text-right text-rose-600">
+                {grandTotal.lost.toLocaleString()} <span className="text-[10px] text-rose-400 font-normal ml-1">({gtLostPct}%)</span>
+              </td>
               <td className="px-4 py-3 text-right bg-slate-200/50">
                 {grandTotal.spends > 0 ? `₹${grandTotal.spends.toLocaleString()}` : '-'}
               </td>

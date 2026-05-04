@@ -29,14 +29,14 @@ export const sourceData = [
 ];
 
 export const adSetPerformance = [
-  { id: '1', date: '2024-04-01', project: 'Godrej Ascend', platform: 'Facebook', vendor: 'Madison', adSet: 'CXOHVG', leads: 45, qualified: 18, appointments: 8, walkins: 3, bookings: 1, spends: 12500, cpl: 277 },
-  { id: '2', date: '2024-04-05', project: 'Godrej Exquisite', platform: 'Facebook', vendor: 'Madison', adSet: 'InvestmHVG', leads: 82, qualified: 35, appointments: 15, walkins: 6, bookings: 0, spends: 20000, cpl: 243 },
-  { id: '3', date: '2024-04-08', project: 'Godrej Ascend', platform: 'Facebook', vendor: 'Madison', adSet: 'Website Visitor', leads: 110, qualified: 40, appointments: 20, walkins: 8, bookings: 2, spends: 15000, cpl: 136 },
-  { id: '4', date: '2024-04-12', project: 'Godrej Ascend', platform: 'Google', vendor: 'Madison', adSet: 'Brand Exact', leads: 65, qualified: 28, appointments: 18, walkins: 10, bookings: 4, spends: 8000, cpl: 123 },
-  { id: '5', date: '2024-04-15', project: 'Godrej Exquisite', platform: 'Google', vendor: 'Madison', adSet: 'Generic Phrase', leads: 145, qualified: 50, appointments: 25, walkins: 12, bookings: 1, spends: 35000, cpl: 241 },
-  { id: '6', date: '2024-04-18', project: 'Godrej Exquisite', platform: '99 Acres', vendor: '99 Acres', adSet: 'Premium Listing', leads: 210, qualified: 85, appointments: 40, walkins: 15, bookings: 3, spends: 25000, cpl: 119 },
-  { id: '7', date: '2024-04-20', project: 'Godrej Ascend', platform: 'Haptik', vendor: 'Haptik', adSet: 'WhatsApp Bot', leads: 55, qualified: 20, appointments: 10, walkins: 4, bookings: 0, spends: 4000, cpl: 72 },
-  { id: '8', date: '2024-04-22', project: 'Godrej Exquisite', platform: 'GPL Organics', vendor: 'Internal', adSet: 'Referral/Direct', leads: 243, qualified: 95, appointments: 55, walkins: 22, bookings: 6, spends: 0, cpl: 0 },
+  { id: '1', date: '2024-04-01', project: 'Godrej Ascend', platform: 'Facebook', vendor: 'Madison', adSet: 'CXOHVG', leads: 45, qualified: 18, appointments: 8, walkins: 3, bookings: 1, lost: 24, spends: 12500, cpl: 277 },
+  { id: '2', date: '2024-04-05', project: 'Godrej Exquisite', platform: 'Facebook', vendor: 'Madison', adSet: 'InvestmHVG', leads: 82, qualified: 35, appointments: 15, walkins: 6, bookings: 0, lost: 40, spends: 20000, cpl: 243 },
+  { id: '3', date: '2024-04-08', project: 'Godrej Ascend', platform: 'Facebook', vendor: 'Madison', adSet: 'Website Visitor', leads: 110, qualified: 40, appointments: 20, walkins: 8, bookings: 2, lost: 60, spends: 15000, cpl: 136 },
+  { id: '4', date: '2024-04-12', project: 'Godrej Ascend', platform: 'Google', vendor: 'Madison', adSet: 'Brand Exact', leads: 65, qualified: 28, appointments: 18, walkins: 10, bookings: 4, lost: 25, spends: 8000, cpl: 123 },
+  { id: '5', date: '2024-04-15', project: 'Godrej Exquisite', platform: 'Google', vendor: 'Madison', adSet: 'Generic Phrase', leads: 145, qualified: 50, appointments: 25, walkins: 12, bookings: 1, lost: 85, spends: 35000, cpl: 241 },
+  { id: '6', date: '2024-04-18', project: 'Godrej Exquisite', platform: '99 Acres', vendor: '99 Acres', adSet: 'Premium Listing', leads: 210, qualified: 85, appointments: 40, walkins: 15, bookings: 3, lost: 110, spends: 25000, cpl: 119 },
+  { id: '7', date: '2024-04-20', project: 'Godrej Ascend', platform: 'Haptik', vendor: 'Haptik', adSet: 'WhatsApp Bot', leads: 55, qualified: 20, appointments: 10, walkins: 4, bookings: 0, lost: 30, spends: 4000, cpl: 72 },
+  { id: '8', date: '2024-04-22', project: 'Godrej Exquisite', platform: 'GPL Organics', vendor: 'Internal', adSet: 'Referral/Direct', leads: 243, qualified: 95, appointments: 55, walkins: 22, bookings: 6, lost: 130, spends: 0, cpl: 0 },
 ];
 
 export const lostReasonsData = [
