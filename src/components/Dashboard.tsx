@@ -72,6 +72,7 @@ import { DrilldownTable } from "./DrilldownTable";
 import { WalkinLostTable } from "./WalkinLostTable";
 import { RawDataTable } from "./RawDataTable";
 import { LostReasonTable } from "./LostReasonTable";
+import { VendorComparisonTable } from "./VendorComparisonTable";
 
 const COLORS = [
   "#4f46e5",
@@ -93,7 +94,7 @@ export function Dashboard() {
   const [endDate, setEndDate] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTableView, setActiveTableView] = useState<
-    "drilldown" | "walkin" | "lostreason" | "raw"
+    "vendor" | "drilldown" | "walkin" | "lostreason" | "raw"
   >("drilldown");
   const [openFilters, setOpenFilters] = useState<Record<string, boolean>>({
     project: true,
@@ -769,7 +770,11 @@ export function Dashboard() {
                   agg.qualified += 1;
                 }
 
-                if (row._derived && row._derived.lostReason && row._derived.lostReason.trim() !== "") {
+                if (
+                  row._derived &&
+                  row._derived.lostReason &&
+                  row._derived.lostReason.trim() !== ""
+                ) {
                   agg.lost += 1;
                 }
 
@@ -788,7 +793,7 @@ export function Dashboard() {
               mappedData = processedRawRows
                 .map((rowWrapper: any, i) => {
                   const row = rowWrapper; // original row data is spread into here
-                  
+
                   const getNum = (keys: string[]) => {
                     // Try to find the key case-insensitively using exact same helper
                     const val = getValRawWrapper(row, keys);
@@ -820,7 +825,10 @@ export function Dashboard() {
                     campaign: rowWrapper._derived.campaign,
                     platform: rowWrapper._derived.platform,
                     vendor: rowWrapper._derived.vendor,
-                    adSet: rowWrapper._derived.adSet === "General" ? `AdSet ${i + 1}` : rowWrapper._derived.adSet,
+                    adSet:
+                      rowWrapper._derived.adSet === "General"
+                        ? `AdSet ${i + 1}`
+                        : rowWrapper._derived.adSet,
                     adCode: rowWrapper._derived.adCode,
                     walkinSource: rowWrapper._derived.walkinSource,
                     leads: leads,
@@ -850,7 +858,7 @@ export function Dashboard() {
                       "lost",
                       "Lost Leads",
                       "Lost Count",
-                      "Drop Off"
+                      "Drop Off",
                     ]),
                     spends: spends,
                     cpl: cpl,
@@ -1757,6 +1765,16 @@ export function Dashboard() {
           <div className="flex flex-col gap-6">
             <div className="flex flex-wrap items-center gap-2 mb-2 p-1 bg-slate-100 rounded-lg self-start">
               <button
+                onClick={() => setActiveTableView("vendor")}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  activeTableView === "vendor"
+                    ? "bg-white text-indigo-700 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
+                }`}
+              >
+                Vendor Comparison
+              </button>
+              <button
                 onClick={() => setActiveTableView("drilldown")}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   activeTableView === "drilldown"
@@ -1797,6 +1815,23 @@ export function Dashboard() {
                 Raw Data List
               </button>
             </div>
+
+            {activeTableView === "vendor" && (
+              <Card className="overflow-hidden flex flex-col">
+                <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Vendor Overview & Performance
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <button className="text-indigo-600 text-xs font-semibold hover:text-indigo-700 flex items-center">
+                      <Download className="w-3 h-3 mr-1" />
+                      Export
+                    </button>
+                  </div>
+                </div>
+                <VendorComparisonTable data={filteredAdSets} />
+              </Card>
+            )}
 
             {activeTableView === "drilldown" && (
               <Card className="overflow-hidden flex flex-col">
