@@ -85,10 +85,11 @@ const COLORS = [
 
 export function Dashboard() {
   const [adSetData, setAdSetData] = useState<any[]>(adSetPerformance);
-  const [globalProjectFilter, setGlobalProjectFilter] = useState("All");
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [adSetSearch, setAdSetSearch] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
   const [timeFilter, setTimeFilter] = useState("This Month");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -113,12 +114,18 @@ export function Dashboard() {
   );
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const uniqueProjects = [
-    "All",
-    ...Array.from(new Set(adSetData.map((p) => p.project))),
-  ];
+  const uniqueProjects = Array.from(new Set(adSetData.map((p) => p.project)));
+  const filteredUniqueProjects = useMemo(() => {
+    return uniqueProjects.filter(p => p.toLowerCase().includes(projectSearch.toLowerCase()));
+  }, [uniqueProjects, projectSearch]);
   const uniqueVendors = Array.from(new Set(adSetData.map((c) => c.vendor)));
   const uniquePlatforms = Array.from(new Set(adSetData.map((c) => c.platform)));
+
+  const handleProjectToggle = (p: string) => {
+    setSelectedProjects((prev) =>
+      prev.includes(p) ? prev.filter((item) => item !== p) : [...prev, p],
+    );
+  };
 
   const handleVendorToggle = (v: string) => {
     setSelectedVendors((prev) =>
@@ -208,7 +215,8 @@ export function Dashboard() {
       if (!row._derived) return true;
       const camp = row._derived;
       const matchProject =
-        globalProjectFilter === "All" || camp.project === globalProjectFilter;
+        selectedProjects.length === 0 ||
+        selectedProjects.includes(camp.project);
       const matchVendor =
         selectedVendors.length === 0 || selectedVendors.includes(camp.vendor);
       const matchPlatform =
@@ -227,7 +235,7 @@ export function Dashboard() {
     });
   }, [
     rawUploadData,
-    globalProjectFilter,
+    selectedProjects,
     selectedVendors,
     selectedPlatforms,
     adSetSearch,
@@ -240,7 +248,8 @@ export function Dashboard() {
   const filteredAdSets = useMemo(() => {
     return adSetData.filter((camp) => {
       const matchProject =
-        globalProjectFilter === "All" || camp.project === globalProjectFilter;
+        selectedProjects.length === 0 ||
+        selectedProjects.includes(camp.project);
       const matchVendor =
         selectedVendors.length === 0 || selectedVendors.includes(camp.vendor);
       const matchPlatform =
@@ -257,7 +266,7 @@ export function Dashboard() {
       );
     });
   }, [
-    globalProjectFilter,
+    selectedProjects,
     selectedVendors,
     selectedPlatforms,
     adSetSearch,
@@ -1042,41 +1051,88 @@ export function Dashboard() {
           <div className="p-4 space-y-4">
             {/* Project Filter */}
             <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-              <button
+              <div
+                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
                 onClick={() => toggleFilter("project")}
-                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors"
               >
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Project Filter
-                </h3>
-                {openFilters.project ? (
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                )}
-              </button>
-              {openFilters.project && (
-                <div className="p-2 space-y-1 max-h-[30vh] overflow-y-auto custom-scrollbar border-t border-slate-100">
-                  {uniqueProjects.map((p) => (
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Projects
+                  </h3>
+                  {selectedProjects.length > 0 && (
+                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {selectedProjects.length}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedProjects.length > 0 && (
                     <button
-                      key={p}
-                      onClick={() => setGlobalProjectFilter(p)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-200 border ${
-                        globalProjectFilter === p
-                          ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                          : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProjects([]);
+                      }}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white hover:bg-indigo-50 px-2 py-0.5 rounded-full transition-colors border border-indigo-100"
                     >
-                      <span
-                        className={`truncate w-full text-left ${globalProjectFilter === p ? "font-semibold" : "font-medium"}`}
-                      >
-                        {p === "All" ? "All Projects" : p}
-                      </span>
-                      {globalProjectFilter === p && (
-                        <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 ml-2" />
-                      )}
+                      Clear
                     </button>
-                  ))}
+                  )}
+                  {openFilters.project ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+              </div>
+              {openFilters.project && (
+                <div className="p-2 space-y-1 max-h-[30vh] flex flex-col border-t border-slate-100">
+                  <div className="sticky top-0 bg-white z-10 pb-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search projects..."
+                        value={projectSearch}
+                        onChange={(e) => setProjectSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="overflow-y-auto custom-scrollbar flex-1 space-y-1 pr-1">
+                    {filteredUniqueProjects.map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => handleProjectToggle(p)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-200 border ${
+                          selectedProjects.includes(p)
+                            ? "bg-indigo-50 border-indigo-200 text-indigo-800 shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+                            : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-slate-100"
+                        }`}
+                      >
+                        <span
+                          className={`truncate w-full text-left ${selectedProjects.includes(p) ? "font-semibold" : "font-medium"}`}
+                        >
+                          {p}
+                        </span>
+                        <div
+                          className={`w-4 h-4 rounded items-center justify-center flex shrink-0 ml-2 transition-colors ${
+                            selectedProjects.includes(p)
+                              ? "bg-indigo-600 text-white border border-indigo-600"
+                              : "border border-slate-300 bg-white"
+                          }`}
+                        >
+                          {selectedProjects.includes(p) && (
+                            <Check className="w-3 h-3" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                    {filteredUniqueProjects.length === 0 && (
+                      <div className="text-center py-4 text-xs text-slate-500">
+                        No projects found
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
